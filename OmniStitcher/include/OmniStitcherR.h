@@ -15,6 +15,7 @@ public:
 	void SetOutputFolder(const std::string &folder);
 	bool LoadCalibrationData(const std::string calibrationFilename);
 	void SaveCalibrationData(const std::string calibrationFilename);
+	void PerformCameraCalibration(const std::vector<std::string> &images, const int width, const int height, const float physWidth=25.0f, const float physHeight=25.0f);
 	void EstimateCameraParameters(const std::vector<std::string> &testFiles);
 	void StitchFrame(std::string filename);
 	void FillInCameraParameters(void);
@@ -55,6 +56,34 @@ private:
 	Mat cameraDistortion_;
 	Mat cameraUndistortMapX_;
 	Mat cameraUndistortMapY_;
+};
+
+
+class OmniCamCalib : public cv::ParallelLoopBody
+{
+public:
+	OmniCamCalib(const std::vector<std::string> *imageFilenames, const std::vector<cv::Point3f> *objPInst, const cv::Size *gridSize,
+		         std::vector<std::vector<cv::Point2f>> *imgPoints, std::vector<std::vector<cv::Point3f>> *objPoints) :
+	imageFilenames_(imageFilenames), objPInst_(objPInst), gridSize_(gridSize), imgPoints_(imgPoints), objPoints_(objPoints) {}
+	void operator()(const cv::Range &r) const
+	{
+		for(int i = r.start; i!= r.end; ++i){
+			cv::Mat img = cv::imread(imageFilenames_->at(i));
+			std::vector<cv::Point2f> corners;
+			cv::findChessboardCorners(img, *gridSize_, corners, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE);
+			if(corners.size() == gridSize_->area()){
+				imgPoints_->at(i) = corners;
+				objPoints_->at(i) = *objPInst_;
+			}
+		}
+	}
+
+private:
+	const std::vector<std::string> *imageFilenames_;
+	const std::vector<cv::Point3f> *objPInst_;
+	const cv::Size *gridSize_;
+	std::vector<std::vector<cv::Point2f>> *imgPoints_;
+	std::vector<std::vector<cv::Point3f>> *objPoints_;
 };
 
 class OmniMatchImage : public cv::ParallelLoopBody

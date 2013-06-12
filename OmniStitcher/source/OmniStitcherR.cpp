@@ -232,13 +232,10 @@ void OmniStitcherR::MatchFrameParallelFor(std::vector<cv::Mat> &images, std::vec
 
 void OmniStitcherR::MatchFrame(std::vector<Mat> &images, std::vector<detail::ImageFeatures> &features, std::vector<std::vector<DMatch>> &matches)
 {
-	std::vector<detail::ImageFeatures> features_;
+	/*std::vector<detail::ImageFeatures> features_;
 	features_.resize(5);
 	cv::setNumThreads(2);
-	parallel_for_(cv::Range(0,4),OmniMatchImage(&features_, &images));
-
-
-	/*
+	parallel_for_(cv::Range(0,4),OmniMatchImage(&features_, &images));*/
 	detail::ImageFeatures featAt, featBt, featCt, featDt, featEt;
 	std::vector<DMatch> matchesAB, matchesBC, matchesCD, matchesDE, matchesEA;
 
@@ -274,7 +271,7 @@ void OmniStitcherR::MatchFrame(std::vector<Mat> &images, std::vector<detail::Ima
 	matches.push_back(matchesBC);
 	matches.push_back(matchesCD);
 	matches.push_back(matchesDE);
-	matches.push_back(matchesEA);*/
+	matches.push_back(matchesEA);
 }
 
 void OmniStitcherR::MatchImage(detail::ImageFeatures *feature1, detail::ImageFeatures *feature2, std::vector<DMatch> *matches)
@@ -319,7 +316,39 @@ void OmniStitcherR::SaveCalibrationData(const std::string calibrationFilename)
 	fs << "tVecCD" << translationVec[2];
 	fs << "tVecDE" << translationVec[3];
 	fs << "tVecEA" << translationVec[4];
-	
 
 	fs.release();
+}
+
+void OmniStitcherR::PerformCameraCalibration(const std::vector<std::string> &images, const int width, const int height, const float physWidth, const float physHeight)
+{
+	std::vector<std::vector<cv::Point2f>> imgPoints;
+	std::vector<std::vector<cv::Point3f>> objPoints;
+	std::vector<cv::Point3f> objPointsInstance;
+	for(int i=0; i<height; ++i){
+		for(int j=0; j<width; ++j){
+			objPointsInstance.push_back(cv::Point3f(j * physWidth, i * physHeight, 0));
+		}
+	}
+	imgPoints.resize(images.size());
+	objPoints.resize(images.size());
+	cv::Size gridSize(width,height);
+	cv::setNumThreads(4);
+	parallel_for_(cv::Range(0,images.size()), OmniCamCalib(&images, &objPointsInstance, &gridSize, &imgPoints, &objPoints));
+	std::vector<int> mask;
+	int i = 0;
+	for(auto itr = imgPoints.cbegin(); itr!= imgPoints.cend(); ++itr, ++i){
+		if(itr->empty())
+			mask.push_back(i);
+	}
+	for(int i = mask.size()-1; i > -1; --i){
+		imgPoints.erase(imgPoints.begin+i);
+		objPoints.erase(objPoints.begin+i);
+	}
+	cv::Size imgSize;
+	cv::Mat img = cv::imread(images[0]);
+	imgSize = img.size();
+	img.release();
+	double result = cv::calibrateCamera(objPoints, imgPoints, imgSize, cameraIntrinsic_, cameraDistortion_, cv::noArray(), cv::noArray());
+	hasCalibrationData_ = true;
 }
