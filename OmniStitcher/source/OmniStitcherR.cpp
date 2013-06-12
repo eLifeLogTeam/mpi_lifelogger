@@ -60,9 +60,9 @@ void OmniStitcherR::EstimateCameraParameters(const std::vector<std::string> &tes
 	EstimateCameraRotation(&imageFeaturesAcc[4], &imageFeaturesAcc[0], &matchesAcc[4], rVecEA, tVecEA);
 	rotationVec[0] = rVecAB;
 	rotationVec[1] = rVecBC;
-	rotationVec[3] = rVecCD;
-	rotationVec[4] = rVecDE;
-	rotationVec[5] = rVecEA;
+	rotationVec[2] = rVecCD;
+	rotationVec[3] = rVecDE;
+	rotationVec[4] = rVecEA;
 
 	translationVec[0] = tVecAB;
 	translationVec[1] = tVecBC;
@@ -120,7 +120,7 @@ void OmniStitcherR::EstimateCameraRotation(detail::ImageFeatures *featOne, detai
 		srcPt[i] = Point3f( featOne->keypoints[matches->at(i).queryIdx].pt.x, featOne->keypoints[matches->at(i).queryIdx].pt.y,1);
 		dstPt[i] = featTwo->keypoints[matches->at(i).trainIdx].pt;
 	}
-	solvePnPRansac(srcPt,dstPt, cameraIntrinsic_, 0, rVec, tVec, false);
+	solvePnPRansac(srcPt,dstPt, cameraIntrinsic_, cv::noArray(), rVec, tVec, false);
 }
 
 void OmniStitcherR::ReadFrame(std::string filename, std::vector<Mat> &images)
@@ -305,6 +305,9 @@ void OmniStitcherR::SaveCalibrationData(const std::string calibrationFilename)
 		fs.release();
 		return;
 	}
+	fs << "cameraMatrix" << cameraIntrinsic_;
+	fs << "distCoeffs" << cameraDistortion_;
+
 	fs << "rVecAB" << rotationVec[0];
 	fs << "rVecBC" << rotationVec[1];
 	fs << "rVecCD" << rotationVec[2];
@@ -342,8 +345,8 @@ void OmniStitcherR::PerformCameraCalibration(const std::vector<std::string> &ima
 			mask.push_back(i);
 	}
 	for(int i = mask.size()-1; i > -1; --i){
-		imgPoints.erase(imgPoints.begin+i);
-		objPoints.erase(objPoints.begin+i);
+		imgPoints.erase(imgPoints.begin()+i);
+		objPoints.erase(objPoints.begin()+i);
 	}
 	cv::Size imgSize;
 	cv::Mat img = cv::imread(images[0]);
